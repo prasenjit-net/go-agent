@@ -255,6 +255,10 @@ tested. See [docs/DESIGN.md](docs/DESIGN.md#22-roadmap) for the phased
 roadmap of what's next (sessions/compaction strategies, OpenTelemetry
 tracing helper, declarative config, multi-agent delegation).
 
+A Claude Code skill teaching coding agents to use this library correctly is
+planned but not yet built — see
+[docs/AGENT-SKILL-PLAN.md](docs/AGENT-SKILL-PLAN.md).
+
 ## Development
 
 ```sh
