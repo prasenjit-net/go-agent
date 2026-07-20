@@ -38,36 +38,18 @@ var (
 // and that every package-prefixed identifier referenced in its Go code
 // fences resolves to a real exported symbol.
 func runCheck() error {
-	var problems []string
-
-	for _, dst := range vendorDirs {
-		if equal, diffs := treesEqual(canonicalDir, dst); !equal {
-			problems = append(problems, diffs...)
-		}
-	}
+	problems := checkVendorTrees(vendorDirs)
 
 	refs, err := collectIdentifierRefs(canonicalDir)
 	if err != nil {
 		return fmt.Errorf("scanning skill content: %w", err)
 	}
 
-	exportsByDir := map[string]map[string]bool{}
-	for alias, names := range refs {
-		pkg := pkgAliases[alias]
-		set, ok := exportsByDir[pkg.dir]
-		if !ok {
-			set, err = exportedNames(pkg.dir)
-			if err != nil {
-				return fmt.Errorf("parsing %s: %w", pkg.dir, err)
-			}
-			exportsByDir[pkg.dir] = set
-		}
-		for name := range names {
-			if !set[name] {
-				problems = append(problems, fmt.Sprintf("%s.%s: no such exported symbol in %s", alias, name, pkg.importPath))
-			}
-		}
+	refProblems, err := checkIdentifierRefs(refs)
+	if err != nil {
+		return err
 	}
+	problems = append(problems, refProblems...)
 
 	if len(problems) > 0 {
 		sort.Strings(problems)
@@ -79,6 +61,44 @@ func runCheck() error {
 
 	fmt.Println("skill content OK: vendor copies in sync, all referenced identifiers resolve")
 	return nil
+}
+
+// checkVendorTrees compares canonicalDir against every vendor directory and
+// describes every mismatch found.
+func checkVendorTrees(dirs []string) []string {
+	var problems []string
+	for _, dst := range dirs {
+		if equal, diffs := treesEqual(canonicalDir, dst); !equal {
+			problems = append(problems, diffs...)
+		}
+	}
+	return problems
+}
+
+// checkIdentifierRefs resolves every "<alias>.<Name>" reference collected by
+// collectIdentifierRefs against the real exported symbols of the aliased
+// package, and describes every reference that doesn't resolve.
+func checkIdentifierRefs(refs map[string]map[string]bool) ([]string, error) {
+	var problems []string
+	exportsByDir := map[string]map[string]bool{}
+	for alias, names := range refs {
+		pkg := pkgAliases[alias]
+		set, ok := exportsByDir[pkg.dir]
+		if !ok {
+			var err error
+			set, err = exportedNames(pkg.dir)
+			if err != nil {
+				return nil, fmt.Errorf("parsing %s: %w", pkg.dir, err)
+			}
+			exportsByDir[pkg.dir] = set
+		}
+		for name := range names {
+			if !set[name] {
+				problems = append(problems, fmt.Sprintf("%s.%s: no such exported symbol in %s", alias, name, pkg.importPath))
+			}
+		}
+	}
+	return problems, nil
 }
 
 // collectIdentifierRefs walks every .md file under dir and returns, per
@@ -127,36 +147,53 @@ func exportedNames(dir string) (map[string]bool, error) {
 	names := map[string]bool{}
 	for _, entry := range entries {
 		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+		if entry.IsDir() || !isGoSourceFile(name) {
 			continue
 		}
 		file, err := parser.ParseFile(fset, filepath.Join(dir, name), nil, 0)
 		if err != nil {
 			return nil, err
 		}
-		for _, decl := range file.Decls {
-			switch d := decl.(type) {
-			case *ast.FuncDecl:
-				if d.Recv == nil && d.Name.IsExported() {
-					names[d.Name.Name] = true
-				}
-			case *ast.GenDecl:
-				for _, spec := range d.Specs {
-					switch s := spec.(type) {
-					case *ast.TypeSpec:
-						if s.Name.IsExported() {
-							names[s.Name.Name] = true
-						}
-					case *ast.ValueSpec:
-						for _, valueName := range s.Names {
-							if valueName.IsExported() {
-								names[valueName.Name] = true
-							}
-						}
-					}
+		addExportedDeclNames(names, file.Decls)
+	}
+	return names, nil
+}
+
+// isGoSourceFile reports whether name is a non-test .go file.
+func isGoSourceFile(name string) bool {
+	return strings.HasSuffix(name, ".go") && !strings.HasSuffix(name, "_test.go")
+}
+
+// addExportedDeclNames adds the exported top-level func/type/const/var names
+// among decls into names.
+func addExportedDeclNames(names map[string]bool, decls []ast.Decl) {
+	for _, decl := range decls {
+		switch d := decl.(type) {
+		case *ast.FuncDecl:
+			if d.Recv == nil && d.Name.IsExported() {
+				names[d.Name.Name] = true
+			}
+		case *ast.GenDecl:
+			addExportedSpecNames(names, d.Specs)
+		}
+	}
+}
+
+// addExportedSpecNames adds the exported names declared by specs (the
+// TypeSpec/ValueSpec entries of a GenDecl) into names.
+func addExportedSpecNames(names map[string]bool, specs []ast.Spec) {
+	for _, spec := range specs {
+		switch s := spec.(type) {
+		case *ast.TypeSpec:
+			if s.Name.IsExported() {
+				names[s.Name.Name] = true
+			}
+		case *ast.ValueSpec:
+			for _, valueName := range s.Names {
+				if valueName.IsExported() {
+					names[valueName.Name] = true
 				}
 			}
 		}
 	}
-	return names, nil
 }

@@ -51,12 +51,28 @@ func treesEqual(src, dst string) (equal bool, diffs []string) {
 		return false, []string{fmt.Sprintf("%s does not exist (run: go run ./internal/skilltool sync)", dst)}
 	}
 
-	srcFiles := map[string][]byte{}
-	err := filepath.WalkDir(src, func(path string, d os.DirEntry, err error) error {
+	srcFiles, err := readTreeFiles(src)
+	if err != nil {
+		return false, []string{err.Error()}
+	}
+	dstFiles, err := readTreeFiles(dst)
+	if err != nil {
+		return false, []string{err.Error()}
+	}
+
+	diffs = diffTreeFiles(src, dst, srcFiles, dstFiles)
+	return len(diffs) == 0, diffs
+}
+
+// readTreeFiles returns every regular file under root, keyed by its path
+// relative to root, with its content.
+func readTreeFiles(root string) (map[string][]byte, error) {
+	files := map[string][]byte{}
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return err
 		}
-		rel, err := filepath.Rel(src, path)
+		rel, err := filepath.Rel(root, path)
 		if err != nil {
 			return err
 		}
@@ -64,33 +80,16 @@ func treesEqual(src, dst string) (equal bool, diffs []string) {
 		if err != nil {
 			return err
 		}
-		srcFiles[rel] = data
+		files[rel] = data
 		return nil
 	})
-	if err != nil {
-		return false, []string{err.Error()}
-	}
+	return files, err
+}
 
-	dstFiles := map[string][]byte{}
-	err = filepath.WalkDir(dst, func(path string, d os.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return err
-		}
-		rel, err := filepath.Rel(dst, path)
-		if err != nil {
-			return err
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		dstFiles[rel] = data
-		return nil
-	})
-	if err != nil {
-		return false, []string{err.Error()}
-	}
-
+// diffTreeFiles compares two relative-path-to-content maps (as produced by
+// readTreeFiles for src and dst respectively) and describes every mismatch.
+func diffTreeFiles(src, dst string, srcFiles, dstFiles map[string][]byte) []string {
+	var diffs []string
 	for rel, want := range srcFiles {
 		got, ok := dstFiles[rel]
 		switch {
@@ -104,6 +103,5 @@ func treesEqual(src, dst string) (equal bool, diffs []string) {
 	for rel := range dstFiles {
 		diffs = append(diffs, fmt.Sprintf("%s: extra file %s not present in %s", dst, rel, src))
 	}
-
-	return len(diffs) == 0, diffs
+	return diffs
 }
