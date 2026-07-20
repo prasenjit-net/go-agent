@@ -30,7 +30,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 
 	for {
 		event, err := stream.Next(ctx)

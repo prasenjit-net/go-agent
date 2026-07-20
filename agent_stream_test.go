@@ -41,7 +41,7 @@ func TestAgent_RunStream_NativeStreamingProvider(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RunStream returned error: %v", err)
 	}
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 
 	events := drainStream(t, stream)
 
@@ -89,7 +89,7 @@ func TestAgent_RunStream_ToolRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RunStream returned error: %v", err)
 	}
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 
 	events := drainStream(t, stream)
 	if !toolCalled {
@@ -128,7 +128,7 @@ func TestAgent_RunStream_FallbackSingleShotForNonStreamingProvider(t *testing.T)
 	if err != nil {
 		t.Fatalf("RunStream returned error: %v", err)
 	}
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 
 	events := drainStream(t, stream)
 	var gotText string

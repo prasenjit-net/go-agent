@@ -76,14 +76,3 @@ func CodeOf(err error) ErrorCode {
 	}
 	return ErrUnknown
 }
-
-// newError is a small constructor helper used by provider adapters.
-func newError(provider string, code ErrorCode, retryable bool, cause error, format string, args ...any) *Error {
-	return &Error{
-		Provider:  provider,
-		Code:      code,
-		Message:   fmt.Sprintf(format, args...),
-		Retryable: retryable,
-		Cause:     cause,
-	}
-}

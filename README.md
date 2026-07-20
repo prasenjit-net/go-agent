@@ -1,5 +1,9 @@
 # go-agent
 
+[![CI](https://github.com/prasenjit-net/go-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/prasenjit-net/go-agent/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/prasenjit-net/go-agent.svg)](https://pkg.go.dev/github.com/prasenjit-net/go-agent)
+[![Go Report Card](https://goreportcard.com/badge/github.com/prasenjit-net/go-agent)](https://goreportcard.com/report/github.com/prasenjit-net/go-agent)
+
 A Go library for building AI agents against **any** inference provider through one
 strongly-typed, idiomatic interface — with **Claude, OpenAI, and Gemini as
 first-class citizens** and a minimal-effort path to add more.
@@ -250,6 +254,32 @@ three first-class providers (non-streaming + streaming) are implemented and
 tested. See [docs/DESIGN.md](docs/DESIGN.md#22-roadmap) for the phased
 roadmap of what's next (sessions/compaction strategies, OpenTelemetry
 tracing helper, declarative config, multi-agent delegation).
+
+## Development
+
+```sh
+go build ./...
+go vet ./...
+go test ./... -race
+gofmt -l .              # should print nothing
+golangci-lint run ./... # errcheck, govet, ineffassign, staticcheck, unused
+```
+
+**CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push/PR to
+`main`: format check, vet, build, race-enabled tests with coverage,
+`golangci-lint`, `govulncheck`, a cross-compile check across
+linux/darwin/windows × amd64/arm64, and a GoReleaser config/snapshot
+validation.
+
+**Releases** ([`.github/workflows/release.yml`](.github/workflows/release.yml)) are
+manual — trigger it from the Actions tab and choose a version bump
+(`patch` / `minor` / `major`), or supply an exact version to override the
+bump. The workflow re-verifies build/vet/test as a gate, tags, and runs
+[GoReleaser](https://goreleaser.com) (config: [`.goreleaser.yaml`](.goreleaser.yaml))
+to publish a GitHub Release with an auto-generated changelog and prebuilt
+binaries of the `examples/` commands. The library itself needs no build step
+to "release" — `go get github.com/prasenjit-net/go-agent@vX.Y.Z` resolves
+directly from the git tag.
 
 ## License
 
