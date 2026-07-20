@@ -323,10 +323,10 @@ manual — trigger it from the Actions tab and choose a version bump
 (`patch` / `minor` / `major`), or supply an exact version to override the
 bump. The workflow re-verifies build/vet/test as a gate, tags, and runs
 [GoReleaser](https://goreleaser.com) (config: [`.goreleaser.yaml`](.goreleaser.yaml))
-to publish a GitHub Release with an auto-generated changelog and prebuilt
-binaries of the `examples/` commands. The library itself needs no build step
-to "release" — `go get github.com/prasenjit-net/go-agent@vX.Y.Z` resolves
-directly from the git tag.
+to publish a GitHub Release with an auto-generated changelog. The library
+needs no build step to "release" — `go get github.com/prasenjit-net/go-agent@vX.Y.Z`
+resolves directly from the git tag — so GoReleaser doesn't build or attach
+any binaries; it only tags and writes release notes.
 
 ## License
 

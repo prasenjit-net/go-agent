@@ -2,71 +2,12 @@ version: 2
 
 project_name: go-agent
 
-before:
-  hooks:
-    - go mod download
-
-# go-agent is primarily a library — `go get github.com/prasenjit-net/go-agent@<tag>`
-# is how consumers actually "install" a release. These builds cross-compile the
-# runnable examples purely as a convenience so a release also ships something
-# people can download and run directly.
+# go-agent is a library — `go get github.com/prasenjit-net/go-agent@<tag>`
+# is how consumers actually "install" a release, so there's nothing for
+# GoReleaser to build. This config only tags the GitHub Release and
+# generates its changelog.
 builds:
-  - id: quickstart
-    main: ./examples/quickstart
-    binary: quickstart
-    env: [CGO_ENABLED=0]
-    goos: [linux, darwin, windows]
-    goarch: [amd64, arm64]
-    ldflags:
-      - -s -w -X main.version={{ .Version }}
-
-  - id: tools
-    main: ./examples/tools
-    binary: tools
-    env: [CGO_ENABLED=0]
-    goos: [linux, darwin, windows]
-    goarch: [amd64, arm64]
-    ldflags:
-      - -s -w -X main.version={{ .Version }}
-
-  - id: streaming
-    main: ./examples/streaming
-    binary: streaming
-    env: [CGO_ENABLED=0]
-    goos: [linux, darwin, windows]
-    goarch: [amd64, arm64]
-    ldflags:
-      - -s -w -X main.version={{ .Version }}
-
-  - id: multiprovider
-    main: ./examples/multiprovider
-    binary: multiprovider
-    env: [CGO_ENABLED=0]
-    goos: [linux, darwin, windows]
-    goarch: [amd64, arm64]
-    ldflags:
-      - -s -w -X main.version={{ .Version }}
-
-  - id: customprovider
-    main: ./examples/customprovider
-    binary: customprovider
-    env: [CGO_ENABLED=0]
-    goos: [linux, darwin, windows]
-    goarch: [amd64, arm64]
-    ldflags:
-      - -s -w -X main.version={{ .Version }}
-
-archives:
-  - id: default
-    formats: [tar.gz]
-    name_template: >-
-      {{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
-    format_overrides:
-      - goos: windows
-        formats: [zip]
-
-checksum:
-  name_template: "checksums.txt"
+  - skip: true
 
 changelog:
   sort: asc
@@ -98,7 +39,7 @@ release:
     go get github.com/prasenjit-net/go-agent/provider/gemini@{{ .Tag }}
     ```
 
-    The archives below are prebuilt binaries of the runnable examples in
+    Runnable examples live in
     [`examples/`](https://github.com/prasenjit-net/go-agent/tree/{{ .Tag }}/examples) —
-    a convenience for trying the library without cloning the repo. Each still
-    needs a provider API key set as an environment variable (see the README).
+    clone the repo and `go run` them directly; each needs a provider API key
+    set as an environment variable (see the README).
