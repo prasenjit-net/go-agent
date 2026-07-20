@@ -67,9 +67,13 @@ jobs:
           cache: true
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v9
         with:
-          version: latest
+          # golangci-lint-action's "latest" can resolve to an old v1.x
+          # release whose own Go build version trails go.mod's — pin the v2
+          # line explicitly (matches .golangci.yml's "version: 2" schema and
+          # what's verified locally) to avoid that mismatch.
+          version: v2.11.4
 
   vulncheck:
     name: govulncheck
