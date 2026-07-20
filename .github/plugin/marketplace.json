@@ -1,0 +1,17 @@
+{
+  "name": "go-agent",
+  "owner": {
+    "name": "Prasenjit Purohit"
+  },
+  "metadata": {
+    "description": "Marketplace for the go-agent skill — teaches coding agents to use github.com/prasenjit-net/go-agent correctly."
+  },
+  "plugins": [
+    {
+      "name": "go-agent",
+      "source": "./",
+      "description": "Teaches coding agents to use go-agent — a Go library for building AI agents against Claude, OpenAI, and Gemini through one interface.",
+      "version": "0.0.1"
+    }
+  ]
+}

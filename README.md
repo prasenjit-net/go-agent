@@ -67,6 +67,42 @@ go get github.com/prasenjit-net/go-agent/provider/gemini
 
 Requires Go 1.22+.
 
+## Using go-agent with an AI coding agent
+
+This repo ships a [Skill](docs/AGENT-SKILL-PLAN.md) that teaches Claude
+Code, OpenAI Codex, and GitHub Copilot the library's real API — tool
+registration, streaming, provider differences, and the pitfalls a coding
+agent would otherwise guess wrong from generic training data. Installing
+it is optional but recommended if you're building against go-agent with
+one of these agents.
+
+The simplest path, one command for any of the three (requires
+[GitHub CLI](https://cli.github.com/) ≥2.90):
+
+```sh
+gh skill install prasenjit-net/go-agent go-agent --agent claude-code
+gh skill install prasenjit-net/go-agent go-agent --agent codex
+gh skill install prasenjit-net/go-agent go-agent --agent copilot
+```
+
+Or install the native plugin directly in each agent:
+
+```sh
+# Claude Code
+/plugin marketplace add prasenjit-net/go-agent
+/plugin install go-agent@go-agent
+
+# Codex — adds this repo as a plugin source, then install via the /plugins panel
+codex plugin marketplace add prasenjit-net/go-agent
+
+# GitHub Copilot
+copilot plugin marketplace add prasenjit-net/go-agent
+copilot plugin install go-agent@go-agent
+```
+
+This is always an explicit, one-time step you take in your own agent —
+nothing about `go get`-ing the library installs it automatically.
+
 ## Quickstart
 
 ```go
@@ -244,6 +280,8 @@ go-agent/                  package agent — core types, Agent, tools, streaming
 │   └── gemini/             wraps google.golang.org/genai
 ├── agenttest/             MockProvider for testing application code
 ├── examples/
+├── skills/go-agent/       coding-agent Skill content (source of truth; see AGENTS.md)
+├── internal/skilltool/    syncs & drift-checks the skill against the real API
 └── docs/DESIGN.md         full design document
 ```
 
@@ -254,6 +292,15 @@ three first-class providers (non-streaming + streaming) are implemented and
 tested. See [docs/DESIGN.md](docs/DESIGN.md#22-roadmap) for the phased
 roadmap of what's next (sessions/compaction strategies, OpenTelemetry
 tracing helper, declarative config, multi-agent delegation).
+
+A coding-agent Skill for Claude Code, Codex, and Copilot is built and
+installable (see [Using go-agent with an AI coding
+agent](#using-go-agent-with-an-ai-coding-agent) above) — plan and design
+notes in [docs/AGENT-SKILL-PLAN.md](docs/AGENT-SKILL-PLAN.md). The actual
+`/plugin install` / `gh skill install` flows haven't been exercised
+end-to-end against a live agent session yet (not something scriptable from
+a shell), so treat the install commands as verified-by-schema, not
+verified-by-use, until someone runs them for real.
 
 ## Development
 

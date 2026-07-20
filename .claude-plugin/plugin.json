@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "go-agent",
+  "description": "Teaches coding agents to use go-agent — a Go library for building AI agents against Claude, OpenAI, and Gemini through one interface.",
+  "version": "0.0.1",
+  "author": {
+    "name": "Prasenjit Purohit"
+  },
+  "homepage": "https://github.com/prasenjit-net/go-agent",
+  "repository": "https://github.com/prasenjit-net/go-agent",
+  "license": "MIT"
+}

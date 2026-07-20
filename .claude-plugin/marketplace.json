@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "go-agent",
+  "version": "0.0.1",
+  "description": "Marketplace for the go-agent skill — teaches coding agents to use github.com/prasenjit-net/go-agent correctly.",
+  "owner": {
+    "name": "Prasenjit Purohit",
+    "url": "https://github.com/prasenjit-net"
+  },
+  "plugins": [
+    {
+      "name": "go-agent",
+      "source": "./",
+      "displayName": "go-agent",
+      "description": "Teaches coding agents to use go-agent — a Go library for building AI agents against Claude, OpenAI, and Gemini through one interface.",
+      "author": {
+        "name": "Prasenjit Purohit"
+      },
+      "homepage": "https://github.com/prasenjit-net/go-agent",
+      "repository": "https://github.com/prasenjit-net/go-agent",
+      "license": "MIT",
+      "category": "development",
+      "keywords": ["go", "golang", "ai-agent", "claude", "openai", "gemini", "tool-calling"]
+    }
+  ]
+}
