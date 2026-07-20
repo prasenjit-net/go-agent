@@ -1,0 +1,13 @@
+{
+  "name": "go-agent",
+  "description": "Teaches coding agents to use go-agent — a Go library for building AI agents against Claude, OpenAI, and Gemini through one interface.",
+  "version": "0.0.1",
+  "author": {
+    "name": "Prasenjit Purohit"
+  },
+  "skills": [
+    "./skills/"
+  ],
+  "license": "MIT",
+  "keywords": ["go", "golang", "ai-agent", "claude", "openai", "gemini", "tool-calling"]
+}

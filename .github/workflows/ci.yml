@@ -119,6 +119,29 @@ jobs:
           CGO_ENABLED: "0"
         run: go build ./...
 
+  skill-check:
+    name: Skill content check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Verify skill JSON manifests are valid
+        run: |
+          for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json \
+                   .codex-plugin/plugin.json plugin.json .github/plugin/marketplace.json; do
+            python3 -c "import json; json.load(open('$f'))" || { echo "invalid JSON: $f"; exit 1; }
+          done
+
+      - name: Check skill content (vendor sync + identifier drift)
+        run: go run ./internal/skilltool check
+
   goreleaser-check:
     name: Validate release config
     runs-on: ubuntu-latest
