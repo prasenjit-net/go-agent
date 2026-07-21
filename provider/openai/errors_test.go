@@ -57,28 +57,10 @@ func TestTranslateError_APIError(t *testing.T) {
 	}
 }
 
-func TestClassifyStatus(t *testing.T) {
-	cases := []struct {
-		status        int
-		wantCode      agent.ErrorCode
-		wantRetryable bool
-	}{
-		{400, agent.ErrInvalidRequest, false},
-		{401, agent.ErrAuthentication, false},
-		{403, agent.ErrPermission, false},
-		{404, agent.ErrNotFound, false},
-		{429, agent.ErrRateLimited, true},
-		{500, agent.ErrProviderInternal, true},
-		{503, agent.ErrProviderInternal, true},
-		{418, agent.ErrUnknown, false},
-	}
-	for _, tc := range cases {
-		code, retryable := classifyStatus(tc.status)
-		if code != tc.wantCode || retryable != tc.wantRetryable {
-			t.Errorf("classifyStatus(%d) = (%v, %v), want (%v, %v)", tc.status, code, retryable, tc.wantCode, tc.wantRetryable)
-		}
-	}
-}
+// The status -> agent.ErrorCode mapping itself is tested once, in
+// internal/providererr, which this package's translateError delegates to;
+// TestTranslateError_APIError above already exercises that delegation
+// end-to-end for the 429 case.
 
 // newTestAPIError builds an *openai.Error with a non-nil Request/Response
 // (required by its Error() method, which dereferences both unconditionally)

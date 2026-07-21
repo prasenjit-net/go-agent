@@ -57,27 +57,23 @@ func TestTranslateError_APIError(t *testing.T) {
 	}
 }
 
-func TestClassifyStatus(t *testing.T) {
-	cases := []struct {
-		status        int
-		wantCode      agent.ErrorCode
-		wantRetryable bool
-	}{
-		{400, agent.ErrInvalidRequest, false},
-		{401, agent.ErrAuthentication, false},
-		{403, agent.ErrPermission, false},
-		{404, agent.ErrNotFound, false},
-		{429, agent.ErrRateLimited, true},
-		{529, agent.ErrOverloaded, true},
-		{500, agent.ErrProviderInternal, true},
-		{503, agent.ErrProviderInternal, true},
-		{418, agent.ErrUnknown, false},
+func TestClassifyStatus_OverloadedIsClaudeSpecific(t *testing.T) {
+	// 529 has no equivalent in the shared internal/providererr mapping (no
+	// other first-class vendor has a literal "overloaded" status) — this is
+	// the one status classifyStatus handles itself before delegating.
+	code, retryable := classifyStatus(529)
+	if code != agent.ErrOverloaded || !retryable {
+		t.Errorf("classifyStatus(529) = (%v, %v), want (ErrOverloaded, true)", code, retryable)
 	}
-	for _, tc := range cases {
-		code, retryable := classifyStatus(tc.status)
-		if code != tc.wantCode || retryable != tc.wantRetryable {
-			t.Errorf("classifyStatus(%d) = (%v, %v), want (%v, %v)", tc.status, code, retryable, tc.wantCode, tc.wantRetryable)
-		}
+}
+
+func TestClassifyStatus_DelegatesUnhandledStatuses(t *testing.T) {
+	// Everything except 529 defers to internal/providererr.ClassifyStatus,
+	// which has its own full table test; this just confirms the delegation
+	// actually happens for a representative status.
+	code, retryable := classifyStatus(429)
+	if code != agent.ErrRateLimited || !retryable {
+		t.Errorf("classifyStatus(429) = (%v, %v), want (ErrRateLimited, true)", code, retryable)
 	}
 }
 

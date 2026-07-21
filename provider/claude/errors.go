@@ -8,6 +8,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go"
 
 	agent "github.com/prasenjit-net/go-agent"
+	"github.com/prasenjit-net/go-agent/internal/providererr"
 )
 
 // translateError maps an error returned by the Anthropic SDK onto the
@@ -42,23 +43,13 @@ func translateError(err error) error {
 	return e
 }
 
+// classifyStatus maps a Claude-specific status onto the unified taxonomy
+// before falling back to the mapping every first-class adapter shares.
+// Claude is the only vendor with a literal "overloaded" status (529); the
+// rest of the mapping is identical across providers.
 func classifyStatus(status int) (agent.ErrorCode, bool) {
-	switch {
-	case status == 400:
-		return agent.ErrInvalidRequest, false
-	case status == 401:
-		return agent.ErrAuthentication, false
-	case status == 403:
-		return agent.ErrPermission, false
-	case status == 404:
-		return agent.ErrNotFound, false
-	case status == 429:
-		return agent.ErrRateLimited, true
-	case status == 529:
+	if status == 529 {
 		return agent.ErrOverloaded, true
-	case status >= 500:
-		return agent.ErrProviderInternal, true
-	default:
-		return agent.ErrUnknown, false
 	}
+	return providererr.ClassifyStatus(status)
 }
