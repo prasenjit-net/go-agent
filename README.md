@@ -230,6 +230,33 @@ result, err := session.Send(ctx, "My name is Alice.")
 result, err = session.Send(ctx, "What's my name?") // remembers "Alice"
 ```
 
+Persist sessions to disk with [`filestore`](filestore) instead of the
+default in-memory store, and bound how long a conversation can grow with
+`agent.WithCompactor` (off by default — compaction is lossy, so it's an
+explicit opt-in):
+
+```go
+store, _ := filestore.New("./sessions")
+a := agent.New(
+    agent.WithProvider(provider),
+    agent.WithConversationStore(store),
+    agent.WithCompactor(agent.NewWindowCompactor(50), 100_000), // keep last 50 messages once ~100k tokens
+)
+```
+
+## Tracing
+
+[`otelagent`](otelagent) wires `Agent`'s existing `Hooks` to emit
+OpenTelemetry spans — one per model call, one per tool call — without
+adding an OpenTelemetry dependency to the root module:
+
+```go
+a := agent.New(
+    agent.WithProvider(provider),
+    agent.WithHooks(otelagent.NewHooks(tracer, "claude")),
+)
+```
+
 ## Adding a new provider
 
 Implementing `agent.Provider` requires exactly one method:
@@ -279,6 +306,8 @@ go-agent/                  package agent — core types, Agent, tools, streaming
 │   ├── openai/            wraps openai-go (Chat Completions API)
 │   └── gemini/             wraps google.golang.org/genai
 ├── agenttest/             MockProvider for testing application code
+├── filestore/             ConversationStore backed by one JSON file per session
+├── otelagent/             OpenTelemetry tracing agent.Hooks (opt-in, separate dependency)
 ├── examples/
 ├── skills/go-agent/       coding-agent Skill content (source of truth; see AGENTS.md)
 ├── internal/skilltool/    syncs & drift-checks the skill against the real API
@@ -287,11 +316,11 @@ go-agent/                  package agent — core types, Agent, tools, streaming
 
 ## Status
 
-Core agent loop, tool calling, streaming, system prompts, retries, and all
-three first-class providers (non-streaming + streaming) are implemented and
-tested. See [docs/DESIGN.md](docs/DESIGN.md#22-roadmap) for the phased
-roadmap of what's next (sessions/compaction strategies, OpenTelemetry
-tracing helper, declarative config, multi-agent delegation).
+Core agent loop, tool calling, streaming, system prompts, retries, all
+three first-class providers (non-streaming + streaming), session
+compaction, and an OpenTelemetry tracing helper are implemented and tested.
+See [docs/DESIGN.md](docs/DESIGN.md#22-roadmap) for the phased roadmap of
+what's next (declarative config, multi-agent delegation).
 
 A coding-agent Skill for Claude Code, Codex, and Copilot is built and
 installable (see [Using go-agent with an AI coding
