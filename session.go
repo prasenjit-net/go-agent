@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"sync"
 )
 
@@ -75,9 +76,16 @@ func (s *Session) Reset(ctx context.Context) error {
 
 // Send appends input as a user turn to the session's history, runs the
 // agent, persists the updated history (including tool round-trips), and
-// returns the result.
+// returns the result. If a Compactor is configured (see WithCompactor), the
+// loaded history is compacted first whenever it crosses the configured
+// token threshold, and the compacted (not the original) history is what
+// gets persisted.
 func (s *Session) Send(ctx context.Context, input string) (*Result, error) {
 	history, err := s.agent.store.Load(ctx, s.id)
+	if err != nil {
+		return nil, err
+	}
+	history, err = s.agent.maybeCompact(ctx, history)
 	if err != nil {
 		return nil, err
 	}
@@ -91,4 +99,46 @@ func (s *Session) Send(ctx context.Context, input string) (*Result, error) {
 		return nil, err
 	}
 	return result, nil
+}
+
+// Compactor reduces a conversation's message history, e.g. to stay under a
+// token budget. Implementations are free to summarize, truncate, or drop
+// messages; the returned slice replaces history for the upcoming turn and
+// is what Session.Send persists afterward. Left pluggable deliberately:
+// some providers have native server-side compaction (out of scope to
+// reimplement here), others need a client-side summarization pass — the
+// interface accommodates either without Session knowing which. See
+// NewWindowCompactor for a dependency-free reference implementation.
+type Compactor interface {
+	Compact(ctx context.Context, msgs []Message) ([]Message, error)
+}
+
+// maybeCompact runs the configured Compactor over history if the provider
+// implements TokenCounter and the estimated token count is at or above the
+// configured threshold. A nil Compactor or non-positive threshold disables
+// this entirely (the default) — compaction is lossy, so callers opt in
+// deliberately via WithCompactor rather than getting it for free. If the
+// provider doesn't implement TokenCounter, there is no cheap way to
+// estimate size, so compaction never triggers; Session.Send still works,
+// simply without it.
+func (a *Agent) maybeCompact(ctx context.Context, history []Message) ([]Message, error) {
+	if a.compactor == nil || a.compactTokens <= 0 || len(history) == 0 {
+		return history, nil
+	}
+	counter, ok := a.provider.(TokenCounter)
+	if !ok {
+		return history, nil
+	}
+	count, err := counter.CountTokens(ctx, &Request{Model: a.model, Messages: history})
+	if err != nil {
+		return nil, fmt.Errorf("agent: estimating token count for compaction: %w", err)
+	}
+	if count < a.compactTokens {
+		return history, nil
+	}
+	compacted, err := a.compactor.Compact(ctx, history)
+	if err != nil {
+		return nil, fmt.Errorf("agent: compacting history: %w", err)
+	}
+	return compacted, nil
 }

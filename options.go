@@ -100,3 +100,16 @@ func WithRetryPolicy(rp RetryPolicy) Option {
 func WithStreamingFallback(mode StreamingFallbackMode) Option {
 	return func(a *Agent) { a.streamFallback = mode }
 }
+
+// WithCompactor enables automatic history compaction on Session.Send: when
+// the provider implements TokenCounter and a session's estimated token
+// count is at or above thresholdTokens, c is invoked to shrink history
+// before the turn runs, and the compacted history is what gets persisted.
+// Unset by default — compaction is lossy, so it's an explicit opt-in rather
+// than an automatic behavior change. See Compactor and NewWindowCompactor.
+func WithCompactor(c Compactor, thresholdTokens int) Option {
+	return func(a *Agent) {
+		a.compactor = c
+		a.compactTokens = thresholdTokens
+	}
+}
