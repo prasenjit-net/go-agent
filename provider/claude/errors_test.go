@@ -1,60 +1,21 @@
 package claude
 
 import (
-	"errors"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/anthropics/anthropic-sdk-go"
 
 	agent "github.com/prasenjit-net/go-agent"
+	"github.com/prasenjit-net/go-agent/internal/providererrtest"
 )
 
-func TestTranslateError_Nil(t *testing.T) {
-	if got := translateError(nil); got != nil {
-		t.Errorf("translateError(nil) = %v, want nil", got)
-	}
-}
-
-func TestTranslateError_NonAPIError(t *testing.T) {
-	cause := errors.New("connection reset")
-	got := translateError(cause)
-
-	var e *agent.Error
-	if !errors.As(got, &e) {
-		t.Fatalf("translateError result is not an *agent.Error: %v", got)
-	}
-	if e.Code != agent.ErrProviderInternal {
-		t.Errorf("Code = %v, want ErrProviderInternal", e.Code)
-	}
-	if !e.Retryable {
-		t.Error("a transport-level error should be marked retryable")
-	}
-	if !errors.Is(got, cause) {
-		t.Error("translated error should wrap the original cause")
-	}
-}
-
-func TestTranslateError_APIError(t *testing.T) {
-	apiErr := newTestAPIError(t, 429, http.Header{"Retry-After": []string{"5"}})
-	got := translateError(apiErr)
-
-	var e *agent.Error
-	if !errors.As(got, &e) {
-		t.Fatalf("translateError result is not an *agent.Error: %v", got)
-	}
-	if e.Code != agent.ErrRateLimited {
-		t.Errorf("Code = %v, want ErrRateLimited", e.Code)
-	}
-	if !e.Retryable {
-		t.Error("429 should be marked retryable")
-	}
-	if e.RetryAfter.Seconds() != 5 {
-		t.Errorf("RetryAfter = %v, want 5s", e.RetryAfter)
-	}
-	if e.Provider != "claude" {
-		t.Errorf("Provider = %q, want claude", e.Provider)
-	}
+func TestTranslateError(t *testing.T) {
+	providererrtest.AssertNilPassesThrough(t, translateError)
+	providererrtest.AssertWrapsUnknownError(t, translateError)
+	providererrtest.AssertClassifiesRateLimit(t, translateError,
+		newTestAPIError(429, http.Header{"Retry-After": []string{"5"}}), "claude", 5)
 }
 
 func TestClassifyStatus_OverloadedIsClaudeSpecific(t *testing.T) {
@@ -80,12 +41,8 @@ func TestClassifyStatus_DelegatesUnhandledStatuses(t *testing.T) {
 // newTestAPIError builds an *anthropic.Error with a non-nil Request/Response
 // (required by its Error() method, which dereferences both unconditionally)
 // and the given status code and response headers.
-func newTestAPIError(t *testing.T, status int, header http.Header) *anthropic.Error {
-	t.Helper()
-	req, err := http.NewRequest(http.MethodPost, "https://api.anthropic.com/v1/messages", nil)
-	if err != nil {
-		t.Fatalf("building test request: %v", err)
-	}
+func newTestAPIError(status int, header http.Header) *anthropic.Error {
+	req := httptest.NewRequest(http.MethodPost, "https://api.anthropic.com/v1/messages", nil)
 	if header == nil {
 		header = http.Header{}
 	}
