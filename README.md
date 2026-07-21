@@ -312,6 +312,16 @@ gofmt -l .              # should print nothing
 golangci-lint run ./... # errcheck, govet, ineffassign, staticcheck, unused
 ```
 
+Benchmarks cover the two hot paths most likely to regress silently — the
+reflection-based JSON Schema generator (`schema/reflect.go`) and the tool
+dispatch/agent-loop path — and are a manual pre-release check, not a CI
+gate (perf on shared runners is noisy enough that a hard threshold would
+false-positive more often than it'd catch a real regression):
+
+```sh
+go test ./schema/... . -bench=. -benchmem -run='^$'
+```
+
 **CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push/PR to
 `main`: format check, vet, build, race-enabled tests with coverage,
 `golangci-lint`, `govulncheck`, a cross-compile check across
