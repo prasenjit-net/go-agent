@@ -33,6 +33,8 @@ type Agent struct {
 	store          ConversationStore
 	retry          RetryPolicy
 	streamFallback StreamingFallbackMode
+	compactor      Compactor
+	compactTokens  int
 }
 
 // New builds an Agent from the given options. WithProvider is effectively

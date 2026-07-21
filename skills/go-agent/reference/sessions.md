@@ -34,6 +34,41 @@ type ConversationStore interface {
 }
 ```
 
+The `filestore` subpackage ships a second implementation — one JSON file
+per session on local disk — for CLIs/single-process apps that want history
+to survive a restart without a database:
+
+```go
+import "github.com/prasenjit-net/go-agent/filestore"
+
+store, err := filestore.New("./sessions") // creates the dir if needed
+a := agent.New(agent.WithProvider(provider), agent.WithConversationStore(store))
+```
+
+## Compaction
+
+Long conversations grow unbounded by default. `agent.WithCompactor` enables
+automatic compaction on `Session.Send`, triggered when the provider
+implements `agent.TokenCounter` and the estimated token count of the
+current history is at or above a threshold you choose:
+
+```go
+a := agent.New(
+    agent.WithProvider(provider), // must implement agent.TokenCounter for this to ever trigger
+    agent.WithCompactor(agent.NewWindowCompactor(50), 100_000), // keep last 50 messages once ~100k tokens
+)
+```
+
+`agent.NewWindowCompactor(maxMessages)` is the built-in reference
+implementation: it keeps only the most recent `maxMessages`, and is
+tool-pairing-aware — a kept `ToolResultBlock` whose originating
+`ToolUseBlock` fell outside the window is dropped too, since every
+first-class provider rejects a tool result with no matching call in the
+same request. It's a blunt strategy (dropped context is gone, not
+summarized); implement the one-method `agent.Compactor` interface directly
+for a smarter (e.g. summarizing) strategy. Compaction is off by default —
+it's lossy, so it's an explicit opt-in, not automatic.
+
 ## Concurrency
 
 `Session` is **not** safe for concurrent `Send` calls on the *same* session
