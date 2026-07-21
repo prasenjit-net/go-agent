@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -125,5 +126,180 @@ func TestToReasoningEffort(t *testing.T) {
 	effort, ok = toReasoningEffort(agent.ThinkingConfig{Mode: agent.ThinkingBudgeted, Budget: 20000})
 	if !ok || effort != shared.ReasoningEffortHigh {
 		t.Errorf("large budget -> %v, %v, want high, true", effort, ok)
+	}
+}
+
+func TestToReasoningEffort_BudgetedTiers(t *testing.T) {
+	cases := []struct {
+		budget int
+		want   shared.ReasoningEffort
+	}{
+		{4000, shared.ReasoningEffortLow},
+		{4001, shared.ReasoningEffortMedium},
+		{16000, shared.ReasoningEffortMedium},
+		{16001, shared.ReasoningEffortHigh},
+	}
+	for _, tc := range cases {
+		effort, ok := toReasoningEffort(agent.ThinkingConfig{Mode: agent.ThinkingBudgeted, Budget: tc.budget})
+		if !ok || effort != tc.want {
+			t.Errorf("budget %d -> %v, %v, want %v, true", tc.budget, effort, ok, tc.want)
+		}
+	}
+}
+
+func TestToParams_DefaultsMaxTokensWhenUnset(t *testing.T) {
+	req := &agent.Request{Model: "gpt-test", Messages: []agent.Message{agent.UserMessage("hi")}}
+	params, err := toParams(req)
+	if err != nil {
+		t.Fatalf("toParams returned error: %v", err)
+	}
+	if !params.MaxCompletionTokens.Valid() || params.MaxCompletionTokens.Value != int64(defaultMaxTokens) {
+		t.Errorf("MaxCompletionTokens = %+v, want default %d", params.MaxCompletionTokens, defaultMaxTokens)
+	}
+}
+
+func TestToParams_WiresToolsAndReasoningEffort(t *testing.T) {
+	type input struct {
+		City string `json:"city" jsonschema:"required"`
+	}
+	tool := agent.NewTool("get_weather", "Get current weather.",
+		func(ctx context.Context, in input) (agent.ToolResult, error) { return agent.TextResult(""), nil })
+
+	req := &agent.Request{
+		Model:      "gpt-test",
+		Messages:   []agent.Message{agent.UserMessage("hi")},
+		Tools:      []agent.RegisteredTool{tool},
+		ToolChoice: agent.ToolChoice{Mode: agent.ToolChoiceAny},
+		Thinking:   &agent.ThinkingConfig{Mode: agent.ThinkingAdaptive},
+	}
+	params, err := toParams(req)
+	if err != nil {
+		t.Fatalf("toParams returned error: %v", err)
+	}
+	if len(params.Tools) != 1 {
+		t.Errorf("Tools = %+v, want 1", params.Tools)
+	}
+	if !params.ToolChoice.OfAuto.Valid() || params.ToolChoice.OfAuto.Value != "required" {
+		t.Errorf("ToolChoice = %+v, want OfAuto=required", params.ToolChoice)
+	}
+	if params.ReasoningEffort != shared.ReasoningEffortMedium {
+		t.Errorf("ReasoningEffort = %v, want medium", params.ReasoningEffort)
+	}
+}
+
+func TestToMessages_UnsupportedRole(t *testing.T) {
+	req := &agent.Request{Messages: []agent.Message{{Role: "system", Content: []agent.ContentBlock{agent.TextBlock{Text: "x"}}}}}
+	if _, err := toMessages(req); err == nil {
+		t.Error("expected an error for an unsupported message role, got nil")
+	}
+}
+
+func TestToContentPart(t *testing.T) {
+	cases := []struct {
+		name    string
+		block   agent.ContentBlock
+		wantErr bool
+	}{
+		{"text", agent.TextBlock{Text: "hi"}, false},
+		{"image url", agent.ImageBlock{Source: agent.ImageSource{Kind: agent.SourceURL, Data: "https://example.com/x.png"}}, false},
+		{"image base64", agent.ImageBlock{Source: agent.ImageSource{Kind: agent.SourceBase64, MediaType: "image/png", Data: "abc"}}, false},
+		{"image unsupported kind", agent.ImageBlock{Source: agent.ImageSource{Kind: "ftp"}}, true},
+		{"document base64", agent.DocumentBlock{Source: agent.ImageSource{Kind: agent.SourceBase64, MediaType: "application/pdf", Data: "abc"}, Title: "doc"}, false},
+		{"document non-base64", agent.DocumentBlock{Source: agent.ImageSource{Kind: agent.SourceURL, Data: "https://example.com/x.pdf"}}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := toContentPart(tc.block)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("toContentPart(%s) error = %v, wantErr %v", tc.name, err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestToUserMessages_FlushesBeforeAndAfterToolResult(t *testing.T) {
+	msg := agent.Message{Role: agent.RoleUser, Content: []agent.ContentBlock{
+		agent.TextBlock{Text: "before"},
+		agent.ToolResultBlock{ToolUseID: "call_1", Content: []agent.ContentBlock{agent.TextBlock{Text: "result"}}},
+		agent.TextBlock{Text: "after"},
+	}}
+	out, err := toUserMessages(msg)
+	if err != nil {
+		t.Fatalf("toUserMessages returned error: %v", err)
+	}
+	if len(out) != 3 {
+		t.Fatalf("len(out) = %d, want 3 (user, tool, user): %+v", len(out), out)
+	}
+	if out[0].OfUser == nil {
+		t.Errorf("out[0] should be a user message with the 'before' text")
+	}
+	if out[1].OfTool == nil || out[1].OfTool.ToolCallID != "call_1" {
+		t.Errorf("out[1] should be the tool result message, got %+v", out[1])
+	}
+	if out[2].OfUser == nil {
+		t.Errorf("out[2] should be a user message with the 'after' text")
+	}
+}
+
+func TestToToolChoice(t *testing.T) {
+	cases := []struct {
+		name string
+		mode agent.ToolChoiceMode
+		want string
+	}{
+		{"any", agent.ToolChoiceAny, "required"},
+		{"none", agent.ToolChoiceNone, "none"},
+		{"auto (default)", agent.ToolChoiceAuto, "auto"},
+		{"unrecognized falls back to auto", "bogus", "auto"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := toToolChoice(agent.ToolChoice{Mode: tc.mode})
+			if !got.OfAuto.Valid() || got.OfAuto.Value != tc.want {
+				t.Errorf("toToolChoice(%q) = %+v, want OfAuto=%q", tc.mode, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestToToolChoice_OneNamesTheFunction(t *testing.T) {
+	got := toToolChoice(agent.ToolChoice{Mode: agent.ToolChoiceOne, Name: "get_weather"})
+	if got.OfFunctionToolChoice == nil || got.OfFunctionToolChoice.Function.Name != "get_weather" {
+		t.Errorf("toToolChoice(one) = %+v", got)
+	}
+}
+
+func TestFromChatCompletion_NoChoicesErrors(t *testing.T) {
+	if _, err := fromChatCompletion(&openai.ChatCompletion{}); err == nil {
+		t.Error("expected an error for a response with no choices, got nil")
+	}
+}
+
+func TestFromFinishReason(t *testing.T) {
+	cases := map[string]agent.StopReason{
+		"stop":           agent.StopEndTurn,
+		"length":         agent.StopMaxTokens,
+		"tool_calls":     agent.StopToolUse,
+		"function_call":  agent.StopToolUse,
+		"content_filter": agent.StopContentFilter,
+		"bogus":          agent.StopUnknown,
+	}
+	for in, want := range cases {
+		if got := fromFinishReason(in); got != want {
+			t.Errorf("fromFinishReason(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestFromUsage(t *testing.T) {
+	raw := `{"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15, "prompt_tokens_details": {"cached_tokens": 3}}`
+	var u openai.CompletionUsage
+	if err := json.Unmarshal([]byte(raw), &u); err != nil {
+		t.Fatalf("failed to build fixture: %v", err)
+	}
+	got := fromUsage(u)
+	want := agent.Usage{InputTokens: 10, OutputTokens: 5, CacheReadTokens: 3}
+	if got != want {
+		t.Errorf("fromUsage = %+v, want %+v", got, want)
 	}
 }
